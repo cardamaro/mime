@@ -95,13 +95,13 @@ func (b *boundaryReader) Next() (bool, error) {
 		if err != nil && err != io.EOF {
 			return false, err
 		}
-		if len(line) > 0 && (line[0] == '\r' || line[0] == '\n') {
-			// Blank line
-			continue
-		}
 		if b.isTerminator(line) {
 			b.finished = true
 			return false, nil
+		}
+		if len(line) > 0 && (line[0] == '\r' || line[0] == '\n') {
+			// Blank line
+			continue
 		}
 		if err != io.EOF && b.isDelimiter(line) {
 			// Start of a new part

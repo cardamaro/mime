@@ -3,6 +3,7 @@ package test
 import (
 	"bytes"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -56,32 +57,10 @@ func ComparePart(t *testing.T, got *mime.Part, want *mime.Part) (equal bool) {
 		}
 		t.Errorf("Part.Parent == %q, want: %q", gs, ws)
 	}
-	/*
-		if (got.FirstChild == nil) != (want.FirstChild == nil) {
-			equal = false
-			gs := "nil"
-			ws := "nil"
-			if got.FirstChild != nil {
-				gs = "present"
-			}
-			if want.FirstChild != nil {
-				ws = "present"
-			}
-			t.Errorf("Part.FirstChild == %q, want: %q", gs, ws)
-		}
-		if (got.NextSibling == nil) != (want.NextSibling == nil) {
-			equal = false
-			gs := "nil"
-			ws := "nil"
-			if got.NextSibling != nil {
-				gs = "present"
-			}
-			if want.NextSibling != nil {
-				ws = "present"
-			}
-			t.Errorf("Part.NextSibling == %q, want: %q", gs, ws)
-		}
-	*/
+
+	if w, g := len(want.Subparts), len(got.Subparts); w != g {
+		t.Errorf("Part.Subparts has %d parts, wanted %d", g, w)
+	}
 	if got.ContentType != want.ContentType {
 		equal = false
 		t.Errorf("Part.ContentType == %q, want: %q", got.ContentType, want.ContentType)
@@ -102,6 +81,12 @@ func ComparePart(t *testing.T, got *mime.Part, want *mime.Part) (equal bool) {
 		equal = false
 		t.Errorf("Part.Descriptor == %q, want: %q", got.Descriptor, want.Descriptor)
 	}
+	if got.Bytes != want.Bytes {
+		equal = false
+		t.Errorf("Part.Bytes == %d, want %d", got.Bytes, want.Bytes)
+	}
+
+	t.Logf("%s: partOffset=%d, headerLen=%d, partLen=%d", got.Descriptor, got.PartOffset, got.HeaderLen, got.PartLen)
 
 	return
 }
@@ -115,8 +100,7 @@ func TestHelperComparePartsEqual(t *testing.T) {
 		{"nil", nil},
 		{"empty", &mime.Part{}},
 		{"Parent", &mime.Part{Parent: &mime.Part{}}},
-		//{"FirstChild", &mime.Part{FirstChild: &mime.Part{}}},
-		//{"NextSibling", &mime.Part{NextSibling: &mime.Part{}}},
+		{"Subparts", &mime.Part{Subparts: []*mime.Part{&mime.Part{}}}},
 		{"ContentType", &mime.Part{ContentType: "such/wow"}},
 		{"Disposition", &mime.Part{Disposition: "irritable"}},
 		{"Filename", &mime.Part{Filename: "readme.txt"}},
@@ -195,27 +179,37 @@ func TestHelperComparePartsInequal(t *testing.T) {
 }
 
 // ContentContainsString checks if the provided readers content contains the specified substring
-func ContentContainsString(t *testing.T, b []byte, substr string) {
+func ContentContainsString(t *testing.T, r io.Reader, substr string) {
 	t.Helper()
-	got := string(b)
-	if !strings.Contains(got, substr) {
-		t.Errorf("content == %q, should contain: %q", got, substr)
+	got, err := ioutil.ReadAll(r)
+	if err != nil {
+		t.Error(err)
+	}
+	if !strings.Contains(string(got), substr) {
+		t.Errorf("content == %q, should contain: %q", string(got), substr)
 	}
 }
 
 // ContentEqualsString checks if the provided readers content is the specified string
-func ContentEqualsString(t *testing.T, b []byte, str string) {
+func ContentEqualsString(t *testing.T, r io.Reader, str string) {
 	t.Helper()
-	got := string(b)
-	if got != str {
-		t.Errorf("content == %q, want: %q", got, str)
+	got, err := ioutil.ReadAll(r)
+	if err != nil {
+		t.Error(err)
+	}
+	if string(got) != str {
+		t.Errorf("content == %q, want: %q", string(got), str)
 	}
 }
 
 // ContentEqualsBytes checks if the provided readers content is the specified []byte
-func ContentEqualsBytes(t *testing.T, b []byte, want []byte) {
+func ContentEqualsBytes(t *testing.T, r io.Reader, want []byte) {
 	t.Helper()
-	if !bytes.Equal(b, want) {
-		t.Errorf("content:\n%v, want:\n%v", b, want)
+	got, err := ioutil.ReadAll(r)
+	if err != nil {
+		t.Error(err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Errorf("content:\n%v, want:\n%v", got, want)
 	}
 }

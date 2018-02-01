@@ -31,11 +31,10 @@ func TestPlainTextPart(t *testing.T) {
 		t.Errorf("Content-Transfer-Encoding got: %q, want: %q", got, want)
 	}
 
-	//want = "Test of text/plain section"
-	//test.ContentContainsString(t, p.Content, want)
+	want = "Test of text/plain section\r\n"
+	test.ContentEqualsString(t, p, want)
 }
 
-/*
 func TestQuotedPrintablePart(t *testing.T) {
 	var want, got string
 	var wantp *mime.Part
@@ -60,8 +59,13 @@ func TestQuotedPrintablePart(t *testing.T) {
 		t.Errorf("Content-Transfer-Encoding got: %q, want: %q", got, want)
 	}
 
+	err = p.Decode()
+	if err != nil {
+		t.Error(err)
+	}
+
 	want = "Start=ABC=Finish"
-	test.ContentEqualsString(t, p.Content, want)
+	test.ContentEqualsString(t, p, want)
 }
 
 func TestQuotedPrintableInvalidPart(t *testing.T) {
@@ -88,8 +92,13 @@ func TestQuotedPrintableInvalidPart(t *testing.T) {
 		t.Errorf("Content-Transfer-Encoding got: %q, want: %q", got, want)
 	}
 
+	err = p.Decode()
+	if err != nil {
+		t.Error(err)
+	}
+
 	want = "Stuffs’s Weekly Summary"
-	test.ContentContainsString(t, p.Content, want)
+	test.ContentContainsString(t, p, want)
 }
 
 func TestMultiAlternParts(t *testing.T) {
@@ -107,40 +116,37 @@ func TestMultiAlternParts(t *testing.T) {
 	}
 
 	wantp = &mime.Part{
-		FirstChild:  test.PartExists,
+		Subparts:    []*mime.Part{test.PartExists, test.PartExists},
 		ContentType: "multipart/alternative",
-		PartID:      "0",
+		Descriptor:  "0",
 	}
 	test.ComparePart(t, p, wantp)
-
-	test.ContentEqualsString(t, p.Content, "")
 
 	// Examine first child
-	p = p.FirstChild
+	p1 := p.Subparts[0]
 	wantp = &mime.Part{
 		Parent:      test.PartExists,
-		NextSibling: test.PartExists,
 		ContentType: "text/plain",
 		Charset:     "us-ascii",
-		PartID:      "1",
+		Descriptor:  "1",
 	}
-	test.ComparePart(t, p, wantp)
+	test.ComparePart(t, p1, wantp)
 
 	want = "A text section"
-	test.ContentContainsString(t, p.Content, want)
+	test.ContentEqualsString(t, p1, want)
 
 	// Examine sibling
-	p = p.NextSibling
+	p2 := p.Subparts[1]
 	wantp = &mime.Part{
 		Parent:      test.PartExists,
 		ContentType: "text/html",
 		Charset:     "us-ascii",
-		PartID:      "2",
+		Descriptor:  "2",
 	}
-	test.ComparePart(t, p, wantp)
+	test.ComparePart(t, p2, wantp)
 
 	want = "An HTML section"
-	test.ContentContainsString(t, p.Content, want)
+	test.ContentEqualsString(t, p2, want)
 }
 
 // TestRootMissingContentType expects a default content type to be set for the root if not specified
@@ -181,39 +187,36 @@ func TestPartMissingContentType(t *testing.T) {
 	}
 
 	wantp = &mime.Part{
-		FirstChild:  test.PartExists,
+		Subparts:    []*mime.Part{test.PartExists, test.PartExists},
 		ContentType: "multipart/alternative",
-		PartID:      "0",
+		Descriptor:  "0",
 	}
 	test.ComparePart(t, p, wantp)
-
-	test.ContentEqualsString(t, p.Content, "")
 
 	// Examine first child
-	p = p.FirstChild
+	p1 := p.Subparts[0]
 	wantp = &mime.Part{
-		Parent:      test.PartExists,
-		NextSibling: test.PartExists,
+		Parent: test.PartExists,
 		// No ContentType
-		PartID: "1",
+		Descriptor: "1",
 	}
-	test.ComparePart(t, p, wantp)
+	test.ComparePart(t, p1, wantp)
 
 	want = "A text section"
-	test.ContentContainsString(t, p.Content, want)
+	test.ContentEqualsString(t, p1, want)
 
 	// Examine sibling
-	p = p.NextSibling
+	p2 := p.Subparts[1]
 	wantp = &mime.Part{
 		Parent:      test.PartExists,
 		ContentType: "text/html",
 		Charset:     "us-ascii",
-		PartID:      "2",
+		Descriptor:  "2",
 	}
-	test.ComparePart(t, p, wantp)
+	test.ComparePart(t, p2, wantp)
 
 	want = "An HTML section"
-	test.ContentContainsString(t, p.Content, want)
+	test.ContentEqualsString(t, p2, want)
 }
 
 func TestPartEmptyHeader(t *testing.T) {
@@ -231,40 +234,37 @@ func TestPartEmptyHeader(t *testing.T) {
 	}
 
 	wantp = &mime.Part{
-		FirstChild:  test.PartExists,
+		Subparts:    []*mime.Part{test.PartExists, test.PartExists},
 		ContentType: "multipart/alternative",
-		PartID:      "0",
+		Descriptor:  "0",
 	}
 	test.ComparePart(t, p, wantp)
-
-	test.ContentEqualsString(t, p.Content, "")
 
 	// Examine first child
-	p = p.FirstChild
+	p1 := p.Subparts[0]
 
 	wantp = &mime.Part{
-		Parent:      test.PartExists,
-		NextSibling: test.PartExists,
+		Parent: test.PartExists,
 		// No ContentType
-		PartID: "1",
+		Descriptor: "1",
 	}
-	test.ComparePart(t, p, wantp)
+	test.ComparePart(t, p1, wantp)
 
 	want = "A text section"
-	test.ContentContainsString(t, p.Content, want)
+	test.ContentEqualsString(t, p1, want)
 
 	// Examine sibling
-	p = p.NextSibling
+	p2 := p.Subparts[1]
 	wantp = &mime.Part{
 		Parent:      test.PartExists,
 		ContentType: "text/html",
 		Charset:     "us-ascii",
-		PartID:      "2",
+		Descriptor:  "2",
 	}
-	test.ComparePart(t, p, wantp)
+	test.ComparePart(t, p2, wantp)
 
 	want = "An HTML section"
-	test.ContentContainsString(t, p.Content, want)
+	test.ContentEqualsString(t, p2, want)
 }
 
 func TestMultiMixedParts(t *testing.T) {
@@ -282,40 +282,37 @@ func TestMultiMixedParts(t *testing.T) {
 	}
 
 	wantp = &mime.Part{
-		FirstChild:  test.PartExists,
+		Subparts:    []*mime.Part{test.PartExists, test.PartExists},
 		ContentType: "multipart/mixed",
-		PartID:      "0",
+		Descriptor:  "0",
 	}
 	test.ComparePart(t, p, wantp)
-
-	test.ContentEqualsString(t, p.Content, "")
 
 	// Examine first child
-	p = p.FirstChild
+	p1 := p.Subparts[0]
 	wantp = &mime.Part{
 		Parent:      test.PartExists,
-		NextSibling: test.PartExists,
 		ContentType: "text/plain",
 		Charset:     "us-ascii",
-		PartID:      "1",
+		Descriptor:  "1",
 	}
-	test.ComparePart(t, p, wantp)
+	test.ComparePart(t, p1, wantp)
 
 	want = "Section one"
-	test.ContentContainsString(t, p.Content, want)
+	test.ContentContainsString(t, p1, want)
 
 	// Examine sibling
-	p = p.NextSibling
+	p2 := p.Subparts[1]
 	wantp = &mime.Part{
 		Parent:      test.PartExists,
 		ContentType: "text/plain",
 		Charset:     "us-ascii",
-		PartID:      "2",
+		Descriptor:  "2",
 	}
-	test.ComparePart(t, p, wantp)
+	test.ComparePart(t, p2, wantp)
 
 	want = "Section two"
-	test.ContentContainsString(t, p.Content, want)
+	test.ContentContainsString(t, p2, want)
 }
 
 func TestMultiOtherParts(t *testing.T) {
@@ -333,44 +330,40 @@ func TestMultiOtherParts(t *testing.T) {
 	}
 
 	wantp = &mime.Part{
-		FirstChild:  test.PartExists,
-		ContentType: "multipart/x-mime",
-		PartID:      "0",
+		Subparts:    []*mime.Part{test.PartExists, test.PartExists},
+		ContentType: "multipart/x-enmime",
+		Descriptor:  "0",
 	}
 	test.ComparePart(t, p, wantp)
-
-	test.ContentEqualsString(t, p.Content, "")
 
 	// Examine first child
-	p = p.FirstChild
+	p1 := p.Subparts[0]
 	wantp = &mime.Part{
 		Parent:      test.PartExists,
-		NextSibling: test.PartExists,
 		ContentType: "text/plain",
 		Charset:     "us-ascii",
-		PartID:      "1",
+		Descriptor:  "1",
 	}
-	test.ComparePart(t, p, wantp)
+	test.ComparePart(t, p1, wantp)
 
 	want = "Section one"
-	test.ContentContainsString(t, p.Content, want)
+	test.ContentContainsString(t, p1, want)
 
 	// Examine sibling
-	p = p.NextSibling
+	p2 := p.Subparts[1]
 	wantp = &mime.Part{
 		Parent:      test.PartExists,
 		ContentType: "text/plain",
 		Charset:     "us-ascii",
-		PartID:      "2",
+		Descriptor:  "2",
 	}
-	test.ComparePart(t, p, wantp)
+	test.ComparePart(t, p2, wantp)
 
 	want = "Section two"
-	test.ContentContainsString(t, p.Content, want)
+	test.ContentContainsString(t, p2, want)
 }
 
 func TestNestedAlternParts(t *testing.T) {
-	var want string
 	var wantp *mime.Part
 	r := test.OpenTestData("parts", "nestedmulti.raw")
 	p, err := mime.ReadParts(r)
@@ -384,88 +377,79 @@ func TestNestedAlternParts(t *testing.T) {
 	}
 
 	wantp = &mime.Part{
+		Subparts:    []*mime.Part{test.PartExists, test.PartExists},
 		ContentType: "multipart/alternative",
-		FirstChild:  test.PartExists,
-		PartID:      "0",
+		Descriptor:  "0",
 	}
 	test.ComparePart(t, p, wantp)
-
-	test.ContentEqualsString(t, p.Content, "")
 
 	// Examine first child
-	p = p.FirstChild
+	p1 := p.Subparts[0]
 	wantp = &mime.Part{
 		Parent:      test.PartExists,
-		NextSibling: test.PartExists,
 		ContentType: "text/plain",
 		Charset:     "us-ascii",
-		PartID:      "1",
+		Descriptor:  "1",
 	}
-	test.ComparePart(t, p, wantp)
+	test.ComparePart(t, p1, wantp)
 
-	want = "A text section"
-	test.ContentContainsString(t, p.Content, want)
+	test.ContentEqualsString(t, p1, "A text section")
 
 	// Examine sibling
-	p = p.NextSibling
+	p2 := p.Subparts[1]
 	wantp = &mime.Part{
-		Parent:      test.PartExists,
-		FirstChild:  test.PartExists,
+		Parent: test.PartExists,
+		Subparts: []*mime.Part{
+			test.PartExists, test.PartExists, test.PartExists},
 		ContentType: "multipart/related",
-		PartID:      "2.0",
+		Descriptor:  "2.0",
 	}
-	test.ComparePart(t, p, wantp)
-
-	test.ContentEqualsString(t, p.Content, "")
+	test.ComparePart(t, p2, wantp)
 
 	// First nested
-	p = p.FirstChild
+	p3 := p2.Subparts[0]
 	wantp = &mime.Part{
 		Parent:      test.PartExists,
-		NextSibling: test.PartExists,
 		ContentType: "text/html",
 		Charset:     "us-ascii",
-		PartID:      "2.1",
+		Descriptor:  "2.1",
 	}
-	test.ComparePart(t, p, wantp)
+	test.ComparePart(t, p3, wantp)
 
-	want = "An HTML section"
-	test.ContentContainsString(t, p.Content, want)
+	test.ContentEqualsString(t, p3, "An HTML section")
 
 	// Second nested
-	p = p.NextSibling
+	p4 := p2.Subparts[1]
 	wantp = &mime.Part{
 		Parent:      test.PartExists,
-		NextSibling: test.PartExists,
 		ContentType: "text/plain",
 		Disposition: "inline",
-		FileName:    "attach.txt",
-		PartID:      "2.2",
+		Filename:    "attach.txt",
+		Descriptor:  "2.2",
 	}
-	test.ComparePart(t, p, wantp)
+	test.ComparePart(t, p4, wantp)
 
-	want = "An inline text attachment"
-	test.ContentContainsString(t, p.Content, want)
+	test.ContentEqualsString(t, p4, "An inline text attachment")
 
 	// Third nested
-	p = p.NextSibling
+	p5 := p2.Subparts[2]
 	wantp = &mime.Part{
 		Parent:      test.PartExists,
 		ContentType: "text/plain",
 		Disposition: "inline",
-		FileName:    "attach2.txt",
-		PartID:      "2.3",
+		Filename:    "attach2.txt",
+		Descriptor:  "2.3",
 	}
-	test.ComparePart(t, p, wantp)
+	test.ComparePart(t, p5, wantp)
 
-	want = "Another inline text attachment"
-	test.ContentContainsString(t, p.Content, want)
+	test.ContentEqualsString(t, p5, "Another inline text attachment")
 }
 
-func TestPartSimilarBoundary(t *testing.T) {
+func TestPartSimilarBoundaryNested(t *testing.T) {
 	var want string
 	var wantp *mime.Part
-	r := test.OpenTestData("parts", "similar-boundary.raw")
+
+	r := test.OpenTestData("parts", "similar-boundary-nested.raw")
 	p, err := mime.ReadParts(r)
 
 	// Examine root
@@ -478,65 +462,175 @@ func TestPartSimilarBoundary(t *testing.T) {
 
 	wantp = &mime.Part{
 		ContentType: "multipart/mixed",
-		FirstChild:  test.PartExists,
-		PartID:      "0",
+		Subparts:    []*mime.Part{test.PartExists, test.PartExists},
+		Descriptor:  "0",
 	}
 	test.ComparePart(t, p, wantp)
-
-	test.ContentEqualsString(t, p.Content, "")
 
 	// Examine first child
-	p = p.FirstChild
+	p1 := p.Subparts[0]
 	wantp = &mime.Part{
 		Parent:      test.PartExists,
-		NextSibling: test.PartExists,
 		ContentType: "text/plain",
 		Charset:     "us-ascii",
-		PartID:      "1",
+		Descriptor:  "1",
 	}
-	test.ComparePart(t, p, wantp)
+	test.ComparePart(t, p1, wantp)
 
-	want = "Section one"
-	test.ContentContainsString(t, p.Content, want)
+	want = "Section one\n"
+	test.ContentEqualsString(t, p1, want)
 
 	// Examine sibling
-	p = p.NextSibling
+	p2 := p.Subparts[1]
 	wantp = &mime.Part{
 		Parent:      test.PartExists,
-		FirstChild:  test.PartExists,
+		Subparts:    []*mime.Part{test.PartExists, test.PartExists, test.PartExists},
 		ContentType: "multipart/alternative",
-		PartID:      "2.0",
+		Descriptor:  "2.0",
 	}
-	test.ComparePart(t, p, wantp)
+	test.ComparePart(t, p2, wantp)
 
-	test.ContentEqualsString(t, p.Content, "")
+	p3 := p2.Subparts[0]
+	wantp = &mime.Part{
+		Parent:      test.PartExists,
+		Subparts:    []*mime.Part{test.PartExists, test.PartExists},
+		ContentType: "multipart/alternative",
+		Descriptor:  "2.1.0",
+	}
+	test.ComparePart(t, p3, wantp)
 
 	// First nested
-	p = p.FirstChild
+	p31 := p3.Subparts[0]
 	wantp = &mime.Part{
 		Parent:      test.PartExists,
-		NextSibling: test.PartExists,
 		ContentType: "text/plain",
 		Charset:     "us-ascii",
-		PartID:      "2.1",
+		Descriptor:  "2.1.1",
 	}
-	test.ComparePart(t, p, wantp)
+	test.ComparePart(t, p31, wantp)
 
 	want = "A text section"
-	test.ContentContainsString(t, p.Content, want)
+	test.ContentEqualsString(t, p31, want)
 
 	// Second nested
-	p = p.NextSibling
+	p41 := p3.Subparts[1]
 	wantp = &mime.Part{
 		Parent:      test.PartExists,
 		ContentType: "text/html",
 		Charset:     "us-ascii",
-		PartID:      "2.2",
+		Descriptor:  "2.1.2",
 	}
-	test.ComparePart(t, p, wantp)
+	test.ComparePart(t, p41, wantp)
 
 	want = "An HTML section"
-	test.ContentContainsString(t, p.Content, want)
+	test.ContentEqualsString(t, p41, want)
+
+	// First nested
+	p5 := p2.Subparts[1]
+	wantp = &mime.Part{
+		Parent:      test.PartExists,
+		ContentType: "text/plain",
+		Charset:     "us-ascii",
+		Descriptor:  "2.2",
+	}
+	test.ComparePart(t, p5, wantp)
+
+	want = "A text section"
+	test.ContentEqualsString(t, p5, want)
+
+	// Second nested
+	p4 := p2.Subparts[2]
+	wantp = &mime.Part{
+		Parent:      test.PartExists,
+		ContentType: "text/html",
+		Charset:     "us-ascii",
+		Descriptor:  "2.3",
+	}
+	test.ComparePart(t, p4, wantp)
+
+	want = "An HTML section"
+	test.ContentEqualsString(t, p4, want)
+}
+
+func TestPartSimilarBoundary(t *testing.T) {
+	var want string
+	var wantp *mime.Part
+
+	var tests = [][]string{
+		[]string{"small", "similar-boundary.raw"},
+		[]string{"large", "similar-boundary-large.raw"},
+	}
+
+	for _, f := range tests {
+		t.Run(f[0], func(t *testing.T) {
+			r := test.OpenTestData("parts", f[1])
+			p, err := mime.ReadParts(r)
+
+			// Examine root
+			if err != nil {
+				t.Fatal("Unexpected parse error:", err)
+			}
+			if p == nil {
+				t.Fatal("Root node should not be nil")
+			}
+
+			wantp = &mime.Part{
+				ContentType: "multipart/mixed",
+				Subparts:    []*mime.Part{test.PartExists, test.PartExists},
+				Descriptor:  "0",
+			}
+			test.ComparePart(t, p, wantp)
+
+			// Examine first child
+			p1 := p.Subparts[0]
+			wantp = &mime.Part{
+				Parent:      test.PartExists,
+				ContentType: "text/plain",
+				Charset:     "us-ascii",
+				Descriptor:  "1",
+			}
+			test.ComparePart(t, p1, wantp)
+
+			want = "Section one\n"
+			test.ContentEqualsString(t, p1, want)
+
+			// Examine sibling
+			p2 := p.Subparts[1]
+			wantp = &mime.Part{
+				Parent:      test.PartExists,
+				Subparts:    []*mime.Part{test.PartExists, test.PartExists},
+				ContentType: "multipart/alternative",
+				Descriptor:  "2.0",
+			}
+			test.ComparePart(t, p2, wantp)
+
+			// First nested
+			p3 := p2.Subparts[0]
+			wantp = &mime.Part{
+				Parent:      test.PartExists,
+				ContentType: "text/plain",
+				Charset:     "us-ascii",
+				Descriptor:  "2.1",
+			}
+			test.ComparePart(t, p3, wantp)
+
+			want = "A text section"
+			test.ContentEqualsString(t, p3, want)
+
+			// Second nested
+			p4 := p2.Subparts[1]
+			wantp = &mime.Part{
+				Parent:      test.PartExists,
+				ContentType: "text/html",
+				Charset:     "us-ascii",
+				Descriptor:  "2.2",
+			}
+			test.ComparePart(t, p4, wantp)
+
+			want = "An HTML section"
+			test.ContentEqualsString(t, p4, want)
+		})
+	}
 }
 
 // Check we don't UTF-8 decode attachments
@@ -555,44 +649,46 @@ func TestBinaryDecode(t *testing.T) {
 	}
 
 	wantp = &mime.Part{
-		FirstChild:  test.PartExists,
+		Subparts:    []*mime.Part{test.PartExists, test.PartExists},
 		ContentType: "multipart/mixed",
-		PartID:      "0",
+		Descriptor:  "0",
 	}
 	test.ComparePart(t, p, wantp)
-
-	test.ContentEqualsString(t, p.Content, "")
 
 	// Examine first child
-	p = p.FirstChild
+	p1 := p.Subparts[0]
 	wantp = &mime.Part{
 		Parent:      test.PartExists,
-		NextSibling: test.PartExists,
 		ContentType: "text/plain",
 		Charset:     "us-ascii",
-		PartID:      "1",
+		Descriptor:  "1",
 	}
-	test.ComparePart(t, p, wantp)
+	test.ComparePart(t, p1, wantp)
 
 	want = "A text section"
-	test.ContentContainsString(t, p.Content, want)
+	test.ContentEqualsString(t, p1, want)
 
 	// Examine sibling
-	p = p.NextSibling
+	p2 := p.Subparts[1]
 	wantp = &mime.Part{
 		Parent:      test.PartExists,
 		ContentType: "application/octet-stream",
 		Charset:     "us-ascii",
 		Disposition: "attachment",
-		FileName:    "test.bin",
-		PartID:      "2",
+		Filename:    "test.bin",
+		Descriptor:  "2",
 	}
-	test.ComparePart(t, p, wantp)
+	test.ComparePart(t, p2, wantp)
+
+	err = p2.Decode()
+	if err != nil {
+		t.Error(err)
+	}
 
 	wantBytes := []byte{
 		0x50, 0x4B, 0x03, 0x04, 0x14, 0x00, 0x08, 0x00,
 		0x08, 0x00, 0xC2, 0x02, 0x29, 0x4A, 0x00, 0x00}
-	test.ContentEqualsBytes(t, p.Content, wantBytes)
+	test.ContentEqualsBytes(t, p2, wantBytes)
 }
 
 func TestMultiBase64Parts(t *testing.T) {
@@ -610,41 +706,48 @@ func TestMultiBase64Parts(t *testing.T) {
 	}
 
 	wantp = &mime.Part{
-		FirstChild:  test.PartExists,
+		Subparts:    []*mime.Part{test.PartExists, test.PartExists},
 		ContentType: "multipart/mixed",
-		PartID:      "0",
+		Descriptor:  "0",
 	}
 	test.ComparePart(t, p, wantp)
-
-	test.ContentEqualsString(t, p.Content, "")
 
 	// Examine first child
-	p = p.FirstChild
+	p1 := p.Subparts[0]
 	wantp = &mime.Part{
 		Parent:      test.PartExists,
-		NextSibling: test.PartExists,
 		ContentType: "text/plain",
 		Charset:     "us-ascii",
-		PartID:      "1",
+		Descriptor:  "1",
 	}
-	test.ComparePart(t, p, wantp)
+	test.ComparePart(t, p1, wantp)
+
+	err = p1.Decode()
+	if err != nil {
+		t.Error(err)
+	}
 
 	want = "A text section"
-	test.ContentContainsString(t, p.Content, want)
+	test.ContentEqualsString(t, p1, want)
 
 	// Examine sibling
-	p = p.NextSibling
+	p2 := p.Subparts[1]
 	wantp = &mime.Part{
 		Parent:      test.PartExists,
 		ContentType: "text/html",
 		Disposition: "attachment",
-		FileName:    "test.html",
-		PartID:      "2",
+		Filename:    "test.html",
+		Descriptor:  "2",
 	}
-	test.ComparePart(t, p, wantp)
+	test.ComparePart(t, p2, wantp)
 
-	want = "<html>"
-	test.ContentContainsString(t, p.Content, want)
+	err = p2.Decode()
+	if err != nil {
+		t.Error(err)
+	}
+
+	want = "<html>\n"
+	test.ContentEqualsString(t, p2, want)
 }
 
 func TestBadBoundaryTerm(t *testing.T) {
@@ -662,34 +765,35 @@ func TestBadBoundaryTerm(t *testing.T) {
 	}
 
 	wantp = &mime.Part{
-		FirstChild:  test.PartExists,
+		Subparts:    []*mime.Part{test.PartExists, test.PartExists},
 		ContentType: "multipart/alternative",
-		PartID:      "0",
+		Descriptor:  "0",
 	}
 	test.ComparePart(t, p, wantp)
 
 	// Examine first child
-	p = p.FirstChild
+	p1 := p.Subparts[0]
 	wantp = &mime.Part{
 		Parent:      test.PartExists,
-		NextSibling: test.PartExists,
 		ContentType: "text/plain",
 		Charset:     "us-ascii",
-		PartID:      "1",
+		Descriptor:  "1",
 	}
-	test.ComparePart(t, p, wantp)
+	test.ComparePart(t, p1, wantp)
+
+	want = "A text section"
+	test.ContentEqualsString(t, p1, want)
 
 	// Examine sibling
-	p = p.NextSibling
+	p2 := p.Subparts[1]
 	wantp = &mime.Part{
 		Parent:      test.PartExists,
 		ContentType: "text/html",
 		Charset:     "us-ascii",
-		PartID:      "2",
+		Descriptor:  "2",
 	}
-	test.ComparePart(t, p, wantp)
+	test.ComparePart(t, p2, wantp)
 
 	want = "An HTML section"
-	test.ContentContainsString(t, p.Content, want)
+	test.ContentEqualsString(t, p2, want)
 }
-*/

@@ -3,9 +3,12 @@ package mime
 import (
 	"bufio"
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
+	"mime/quotedprintable"
 	"net/textproto"
 	"strconv"
 	"strings"
@@ -32,11 +35,13 @@ type Part struct {
 	Subparts []*Part
 	Header   textproto.MIMEHeader
 
-	Epilogue []byte
-	Errors   []error
+	PartOffset, HeaderLen, PartLen int
+	Epilogue                       []byte
+	Errors                         []error
 
-	boundary string
-	reader   io.Reader
+	boundary  string
+	reader    io.Reader
+	rawReader io.ReaderAt
 }
 
 func ReadParts(r io.Reader) (*Part, error) {
@@ -46,15 +51,18 @@ func ReadParts(r io.Reader) (*Part, error) {
 		return nil, errors.Wrap(err, "error filling buffer")
 	}
 
-	br := bufio.NewReader(b)
-	root := new(Part)
-	root.Bytes = uint32(n)
+	cr := countingReader{Reader: b}
+	br := bufio.NewReader(&cr)
+	root := NewPart(nil)
+	root.rawReader = b
 
 	header, err := readHeader(br)
 	if err != nil {
 		return nil, errors.Wrap(err, "error reading header")
 	}
 	root.Header = header
+	root.HeaderLen = cr.N - br.Buffered()
+	root.PartLen = int(n)
 
 	// Content-Type, default is text/plain us-ascii according to RFC 822
 	mediatype := "text/plain"
@@ -76,28 +84,94 @@ func ReadParts(r io.Reader) (*Part, error) {
 		// Content is multipart, parse it
 		boundary := params[hpBoundary]
 		root.boundary = boundary
-		err = parseParts(root, br)
+		err = parseParts(root, br, &cr, 0)
 		if err != nil {
 			return nil, errors.Wrap(err, "error parsing multipart")
 		}
 	} else {
-		// Read raw content into buffer
-		var buf bytes.Buffer
-		if _, err := buf.ReadFrom(r); err != nil {
-			return nil, errors.Wrap(err, "error reading part")
+		if _, err := io.Copy(ioutil.Discard, br); err != nil {
+			return nil, err
 		}
-		root.reader = &buf
-		// Content is text or data, build content reader pipeline
-		//if err := root.buildContentReaders(br); err != nil {
-		//	return nil, err
-		//}
 	}
+	root.reader = io.NewSectionReader(
+		root.rawReader,
+		int64(root.HeaderLen),
+		int64(root.PartLen-root.HeaderLen))
 
 	return root, nil
 }
 
-func NewPart(parent *Part, contentType string) *Part {
-	return &Part{Parent: parent, ContentType: contentType}
+func NewPart(parent *Part) *Part {
+	part := &Part{
+		Parent: parent,
+	}
+	if parent != nil {
+		part.rawReader = parent.rawReader
+	}
+	return part
+}
+
+func (p *Part) Decode() error {
+	valid := true
+	r := p.reader
+
+	// Allow later access to Base64 errors
+	var b64cleaner *base64Cleaner
+
+	// Build content decoding reader
+	encoding := p.Header.Get(hnContentEncoding)
+	switch strings.ToLower(encoding) {
+	case "quoted-printable":
+		r = newQPCleaner(r)
+		r = quotedprintable.NewReader(r)
+	case "base64":
+		b64cleaner = newBase64Cleaner(r)
+		r = base64.NewDecoder(base64.RawStdEncoding, b64cleaner)
+	case "8bit", "7bit", "binary", "":
+		// No decoding required
+	default:
+		// Unknown encoding
+		valid = false
+		log.Printf("%s: unrecognized Content-Transfer-Encoding type %q", ErrorContentEncoding, encoding)
+		//p.addWarning(
+		//	ErrorContentEncoding,
+		//	"Unrecognized Content-Transfer-Encoding type %q",
+		//	encoding)
+	}
+
+	if valid && !detectAttachmentHeader(p.Header) {
+		// decodedReader is good; build character set conversion reader
+		if p.Charset != "" {
+			if reader, err := newCharsetReader(p.Charset, r); err == nil {
+				r = reader
+			} else {
+				// Try to parse charset again here to see if we can salvage some badly formed ones
+				// like charset="charset=utf-8"
+				charsetp := strings.Split(p.Charset, "=")
+				if strings.ToLower(charsetp[0]) == "charset" && len(charsetp) > 1 {
+					p.Charset = charsetp[1]
+					if reader, err := newCharsetReader(p.Charset, r); err == nil {
+						r = reader
+					} else {
+						// Failed to get a conversion reader
+						//p.addWarning(ErrorCharsetConversion, err.Error())
+						log.Print(ErrorCharsetConversion)
+					}
+				} else {
+					// Failed to get a conversion reader
+					//p.addWarning(ErrorCharsetConversion, err.Error())
+					log.Print(ErrorCharsetConversion)
+				}
+			}
+		}
+	}
+
+	if b64cleaner != nil {
+		p.Errors = append(p.Errors, b64cleaner.Errors...)
+	}
+	p.reader = r
+
+	return nil
 }
 
 func (p *Part) Read(b []byte) (int, error) {
@@ -105,7 +179,7 @@ func (p *Part) Read(b []byte) (int, error) {
 }
 
 // parseParts recursively parses a mime multipart document and sets each Part's Descriptor.
-func parseParts(parent *Part, reader *bufio.Reader) error {
+func parseParts(parent *Part, reader *bufio.Reader, cr *countingReader, offset int) error {
 	firstRecursion := parent.Parent == nil
 	// Set root Descriptor
 	if firstRecursion {
@@ -127,7 +201,7 @@ func parseParts(parent *Part, reader *bufio.Reader) error {
 			break
 		}
 
-		p := &Part{Parent: parent}
+		p := NewPart(parent)
 
 		// Set this Part's Descriptor, indicating its position within the MIME Part Tree
 		if firstRecursion {
@@ -136,9 +210,13 @@ func parseParts(parent *Part, reader *bufio.Reader) error {
 			p.Descriptor = p.Parent.Descriptor + "." + strconv.Itoa(indexDescriptor)
 		}
 
-		bbr := bufio.NewReader(br)
+		p.PartOffset = offset + (cr.N - reader.Buffered())
+
+		ccr := countingReader{Reader: br}
+		bbr := bufio.NewReader(&ccr)
 		header, err := readHeader(bbr)
 		p.Header = header
+		p.HeaderLen = ccr.N - bbr.Buffered()
 		if err == ErrEmptyHeaderBlock {
 			// Empty header probably means the part didn't use the correct trailing "--" syntax to
 			// close its boundary.
@@ -146,10 +224,7 @@ func parseParts(parent *Part, reader *bufio.Reader) error {
 				if err == io.EOF || strings.HasSuffix(err.Error(), "EOF") {
 					// There are no more Parts, but the error belongs to a sibling or parent,
 					// because this Part doesn't actually exist.
-					//owner.addWarning(
-					//	ErrorMissingBoundary,
-					//	"Boundary %q was not closed correctly",
-					//	parent.boundary)
+					// TODO
 					log.Printf("%v: boundary %q was not closed correctly", ErrorMissingBoundary, parent.boundary)
 					break
 				}
@@ -164,7 +239,7 @@ func parseParts(parent *Part, reader *bufio.Reader) error {
 			//p.addWarning(
 			//	ErrorMissingContentType,
 			//	"MIME parts should have a Content-Type header")
-			log.Printf("MIME parts should have a Content-Type header")
+			log.Printf("%s: MIME parts should have a Content-Type header", p.Descriptor)
 		} else {
 			// Parse Content-Type header
 			mtype, mparams, err := parseMediaType(ctype)
@@ -186,16 +261,20 @@ func parseParts(parent *Part, reader *bufio.Reader) error {
 
 		if p.boundary != "" {
 			// Content is another multipart
-			err = parseParts(p, bbr)
+			err = parseParts(p, bbr, &ccr, p.PartOffset)
 			if err != nil {
 				return err
 			}
 		} else {
-			// Content is text or data: build content reader pipeline
-			//if err := p.buildContentReaders(bbr); err != nil {
-			//	return err
-			//}
+			if _, err := io.Copy(ioutil.Discard, bbr); err != nil {
+				return err
+			}
 		}
+		p.PartLen = ccr.N - bbr.Buffered()
+		p.reader = io.NewSectionReader(
+			p.rawReader,
+			int64(p.PartOffset+p.HeaderLen),
+			int64(p.PartLen-p.HeaderLen))
 	}
 
 	// Store any content following the closing boundary marker into the epilogue
@@ -233,4 +312,15 @@ func (p *Part) setupContentHeaders(mediaParams map[string]string) {
 	if p.Charset == "" {
 		p.Charset = mediaParams[hpCharset]
 	}
+}
+
+type countingReader struct {
+	io.Reader
+	N int
+}
+
+func (cr *countingReader) Read(p []byte) (n int, err error) {
+	n, err = cr.Reader.Read(p)
+	cr.N += n
+	return n, err
 }
