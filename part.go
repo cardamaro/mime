@@ -17,6 +17,11 @@ import (
 	"github.com/pkg/errors"
 )
 
+type ReaderAtCloser interface {
+	io.ReaderAt
+	io.Closer
+}
+
 type Part struct {
 	Descriptor string
 
@@ -31,9 +36,10 @@ type Part struct {
 	Bytes uint32
 	Lines uint32
 
-	Parent   *Part
-	Subparts []*Part
-	Header   textproto.MIMEHeader
+	Parent       *Part
+	Subparts     []*Part
+	Header       textproto.MIMEHeader
+	HeaderReader io.Reader
 
 	PartOffset, HeaderLen, PartLen int
 	Epilogue                       []byte
@@ -41,7 +47,7 @@ type Part struct {
 
 	boundary  string
 	reader    io.Reader
-	rawReader io.ReaderAt
+	rawReader ReaderAtCloser
 }
 
 func ReadParts(r io.Reader) (*Part, error) {
@@ -93,10 +99,11 @@ func ReadParts(r io.Reader) (*Part, error) {
 			return nil, err
 		}
 	}
+
 	root.reader = io.NewSectionReader(
-		root.rawReader,
-		int64(root.HeaderLen),
-		int64(root.PartLen-root.HeaderLen))
+		root.rawReader, int64(root.HeaderLen), int64(root.PartLen-root.HeaderLen))
+	root.HeaderReader = io.NewSectionReader(
+		root.rawReader, 0, int64(root.HeaderLen))
 
 	return root, nil
 }
@@ -109,6 +116,10 @@ func NewPart(parent *Part) *Part {
 		part.rawReader = parent.rawReader
 	}
 	return part
+}
+
+func (p *Part) Close() error {
+	return p.rawReader.Close()
 }
 
 func (p *Part) Decode() error {
@@ -172,6 +183,24 @@ func (p *Part) Decode() error {
 	p.reader = r
 
 	return nil
+}
+
+type PartVisitor func(p *Part) error
+
+func (p *Part) Walk(v PartVisitor) error {
+	if err := v(p); err != nil {
+		return err
+	}
+	for _, s := range p.Subparts {
+		if err := s.Walk(v); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (p *Part) String() string {
+	return fmt.Sprintf("%s <%s>", p.Descriptor, p.ContentType)
 }
 
 func (p *Part) Read(b []byte) (int, error) {
@@ -272,9 +301,9 @@ func parseParts(parent *Part, reader *bufio.Reader, cr *countingReader, offset i
 		}
 		p.PartLen = ccr.N - bbr.Buffered()
 		p.reader = io.NewSectionReader(
-			p.rawReader,
-			int64(p.PartOffset+p.HeaderLen),
-			int64(p.PartLen-p.HeaderLen))
+			p.rawReader, int64(p.PartOffset+p.HeaderLen), int64(p.PartLen-p.HeaderLen))
+		p.HeaderReader = io.NewSectionReader(
+			p.rawReader, int64(p.PartOffset), int64(p.HeaderLen))
 	}
 
 	// Store any content following the closing boundary marker into the epilogue

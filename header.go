@@ -190,18 +190,18 @@ func isWhiteSpaceRune(r rune) bool {
 
 func parseMediaType(ctype string) (string, map[string]string, error) {
 	// Parse Content-Type header
-	mtype, mparams, err := mime.ParseMediaType(ctype)
+	mtype, mparams, err := ParseMediaType(ctype)
 	if err != nil {
 		// Small hack to remove harmless charset duplicate params
 		mctype := parseBadContentType(ctype, ";")
-		mtype, mparams, err = mime.ParseMediaType(mctype)
+		mtype, mparams, err = ParseMediaType(mctype)
 		if err != nil {
 			// Some badly formed content-types forget to send a ; between fields
 			mctype := parseBadContentType(ctype, " ")
 			if strings.Contains(mctype, `name=""`) {
 				mctype = strings.Replace(mctype, `name=""`, `name=" "`, -1)
 			}
-			mtype, mparams, err = mime.ParseMediaType(mctype)
+			mtype, mparams, err = ParseMediaType(mctype)
 			if err != nil {
 				return "", make(map[string]string), err
 			}
