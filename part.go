@@ -122,6 +122,10 @@ func (p *Part) Close() error {
 	return p.rawReader.Close()
 }
 
+func (p *Part) RawReader() io.Reader {
+	return io.MultiReader(p.HeaderReader, p)
+}
+
 func (p *Part) Decode() (io.Reader, error) {
 	valid := true
 	r := p.reader
