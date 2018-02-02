@@ -59,13 +59,13 @@ func TestQuotedPrintablePart(t *testing.T) {
 		t.Errorf("Content-Transfer-Encoding got: %q, want: %q", got, want)
 	}
 
-	err = p.Decode()
+	d, err := p.Decode()
 	if err != nil {
 		t.Error(err)
 	}
 
 	want = "Start=ABC=Finish"
-	test.ContentEqualsString(t, p, want)
+	test.ContentEqualsString(t, d, want)
 }
 
 func TestQuotedPrintableInvalidPart(t *testing.T) {
@@ -92,13 +92,13 @@ func TestQuotedPrintableInvalidPart(t *testing.T) {
 		t.Errorf("Content-Transfer-Encoding got: %q, want: %q", got, want)
 	}
 
-	err = p.Decode()
+	d, err := p.Decode()
 	if err != nil {
 		t.Error(err)
 	}
 
 	want = "Stuffs’s Weekly Summary"
-	test.ContentContainsString(t, p, want)
+	test.ContentContainsString(t, d, want)
 }
 
 func TestMultiAlternParts(t *testing.T) {
@@ -680,7 +680,7 @@ func TestBinaryDecode(t *testing.T) {
 	}
 	test.ComparePart(t, p2, wantp)
 
-	err = p2.Decode()
+	d, err := p2.Decode()
 	if err != nil {
 		t.Error(err)
 	}
@@ -688,7 +688,7 @@ func TestBinaryDecode(t *testing.T) {
 	wantBytes := []byte{
 		0x50, 0x4B, 0x03, 0x04, 0x14, 0x00, 0x08, 0x00,
 		0x08, 0x00, 0xC2, 0x02, 0x29, 0x4A, 0x00, 0x00}
-	test.ContentEqualsBytes(t, p2, wantBytes)
+	test.ContentEqualsBytes(t, d, wantBytes)
 }
 
 func TestMultiBase64Parts(t *testing.T) {
@@ -722,13 +722,13 @@ func TestMultiBase64Parts(t *testing.T) {
 	}
 	test.ComparePart(t, p1, wantp)
 
-	err = p1.Decode()
+	d, err := p1.Decode()
 	if err != nil {
 		t.Error(err)
 	}
 
 	want = "A text section"
-	test.ContentEqualsString(t, p1, want)
+	test.ContentEqualsString(t, d, want)
 
 	// Examine sibling
 	p2 := p.Subparts[1]
@@ -741,13 +741,13 @@ func TestMultiBase64Parts(t *testing.T) {
 	}
 	test.ComparePart(t, p2, wantp)
 
-	err = p2.Decode()
+	d, err = p2.Decode()
 	if err != nil {
 		t.Error(err)
 	}
 
 	want = "<html>\n"
-	test.ContentEqualsString(t, p2, want)
+	test.ContentEqualsString(t, d, want)
 }
 
 func TestBadBoundaryTerm(t *testing.T) {

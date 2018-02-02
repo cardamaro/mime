@@ -122,7 +122,7 @@ func (p *Part) Close() error {
 	return p.rawReader.Close()
 }
 
-func (p *Part) Decode() error {
+func (p *Part) Decode() (io.Reader, error) {
 	valid := true
 	r := p.reader
 
@@ -177,12 +177,10 @@ func (p *Part) Decode() error {
 		}
 	}
 
-	if b64cleaner != nil {
-		p.Errors = append(p.Errors, b64cleaner.Errors...)
-	}
-	p.reader = r
-
-	return nil
+	return r, nil
+	//if b64cleaner != nil {
+	//	p.Errors = append(p.Errors, b64cleaner.Errors...)
+	//}
 }
 
 type PartVisitor func(p *Part) error
