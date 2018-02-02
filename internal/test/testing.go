@@ -81,9 +81,9 @@ func ComparePart(t *testing.T, got *mime.Part, want *mime.Part) (equal bool) {
 		equal = false
 		t.Errorf("Part.Descriptor == %q, want: %q", got.Descriptor, want.Descriptor)
 	}
-	if got.Bytes != want.Bytes {
+	if want.Size > 0 && got.Size != want.Size {
 		equal = false
-		t.Errorf("Part.Bytes == %d, want %d", got.Bytes, want.Bytes)
+		t.Errorf("Part.Size == %d, want %d", got.Size, want.Size)
 	}
 
 	t.Logf("%s: partOffset=%d, headerLen=%d, partLen=%d", got.Descriptor, got.PartOffset, got.HeaderLen, got.PartLen)

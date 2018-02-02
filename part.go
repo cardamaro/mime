@@ -33,8 +33,8 @@ type Part struct {
 	Charset           string
 	Filename          string
 
-	Bytes uint32
-	Lines uint32
+	Size  int
+	Lines int
 
 	Parent       *Part
 	Subparts     []*Part
@@ -59,6 +59,7 @@ func ReadParts(r io.Reader) (*Part, error) {
 
 	cr := countingReader{Reader: b}
 	br := bufio.NewReader(&cr)
+
 	root := NewPart(nil)
 	root.rawReader = b
 
@@ -69,6 +70,7 @@ func ReadParts(r io.Reader) (*Part, error) {
 	root.Header = header
 	root.HeaderLen = cr.N - br.Buffered()
 	root.PartLen = int(n)
+	root.Size = root.PartLen - root.HeaderLen
 
 	// Content-Type, default is text/plain us-ascii according to RFC 822
 	mediatype := "text/plain"
@@ -246,8 +248,6 @@ func parseParts(parent *Part, reader *bufio.Reader, cr *countingReader, offset i
 		ccr := countingReader{Reader: br}
 		bbr := bufio.NewReader(&ccr)
 		header, err := readHeader(bbr)
-		p.Header = header
-		p.HeaderLen = ccr.N - bbr.Buffered()
 		if err == ErrEmptyHeaderBlock {
 			// Empty header probably means the part didn't use the correct trailing "--" syntax to
 			// close its boundary.
@@ -264,6 +264,9 @@ func parseParts(parent *Part, reader *bufio.Reader, cr *countingReader, offset i
 		} else if err != nil {
 			return err
 		}
+
+		p.Header = header
+		p.HeaderLen = ccr.N - bbr.Buffered()
 
 		ctype := header.Get(hnContentType)
 		if ctype == "" {
@@ -301,7 +304,10 @@ func parseParts(parent *Part, reader *bufio.Reader, cr *countingReader, offset i
 				return err
 			}
 		}
+
 		p.PartLen = ccr.N - bbr.Buffered()
+		p.Size = p.PartLen - p.HeaderLen
+
 		p.reader = io.NewSectionReader(
 			p.rawReader, int64(p.PartOffset+p.HeaderLen), int64(p.PartLen-p.HeaderLen))
 		p.HeaderReader = io.NewSectionReader(

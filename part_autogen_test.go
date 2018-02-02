@@ -99,6 +99,9 @@ func autogen(t *testing.T, content [][]byte) {
 		if want, got := string(content[i]), string(b); want != got {
 			t.Errorf("wanted %q, got %q", want, got)
 		}
+		if want, got := len(content[i]), pp.Size; want != got {
+			t.Errorf("wanted %v, got %v", want, got)
+		}
 
 		i++
 
