@@ -82,8 +82,8 @@ func ReadParts(r io.Reader) (*Part, error) {
 			return nil, errors.Wrap(err, "error parsing media type")
 		}
 	}
-	root.ContentType = mediatype
-	root.Charset = params[hpCharset]
+	root.ContentType = strings.ToLower(mediatype)
+	root.Charset = strings.ToLower(params[hpCharset])
 	root.ContentParams = params
 
 	if strings.HasPrefix(mediatype, ctMultipartPrefix) {
@@ -273,7 +273,7 @@ func parseParts(parent *Part, reader *bufio.Reader, cr *countingReader, offset i
 			if err != nil {
 				return err
 			}
-			p.ContentType = mtype
+			p.ContentType = strings.ToLower(mtype)
 			p.ContentParams = mparams
 
 			// Set disposition, filename, charset if available
@@ -337,7 +337,7 @@ func (p *Part) setupContentHeaders(mediaParams map[string]string) {
 		p.Filename = decodeHeader(mediaParams[hpFile])
 	}
 	if p.Charset == "" {
-		p.Charset = mediaParams[hpCharset]
+		p.Charset = strings.ToLower(mediaParams[hpCharset])
 	}
 }
 
