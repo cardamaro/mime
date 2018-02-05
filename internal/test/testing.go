@@ -33,6 +33,8 @@ func OpenTestData(subdir, filename string) io.Reader {
 // ignored.
 func ComparePart(t *testing.T, got *mime.Part, want *mime.Part) (equal bool) {
 	t.Helper()
+	t.Logf("%-27s: partOffset=%d, headerLen=%d, partLen=%d", got, got.PartOffset, got.HeaderLen, got.PartLen)
+
 	if got == nil && want != nil {
 		t.Error("Part == nil, want not nil")
 		return
@@ -85,8 +87,6 @@ func ComparePart(t *testing.T, got *mime.Part, want *mime.Part) (equal bool) {
 		equal = false
 		t.Errorf("Part.Size == %d, want %d", got.Size, want.Size)
 	}
-
-	t.Logf("%s: partOffset=%d, headerLen=%d, partLen=%d", got.Descriptor, got.PartOffset, got.HeaderLen, got.PartLen)
 
 	return
 }

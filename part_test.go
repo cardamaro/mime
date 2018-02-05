@@ -83,6 +83,7 @@ func TestQuotedPrintableInvalidPart(t *testing.T) {
 	wantp = &mime.Part{
 		ContentType: "text/plain",
 		Charset:     "utf-8",
+		Disposition: "inline",
 	}
 	test.ComparePart(t, p, wantp)
 
@@ -99,6 +100,88 @@ func TestQuotedPrintableInvalidPart(t *testing.T) {
 
 	want = "Stuffs’s Weekly Summary"
 	test.ContentContainsString(t, d, want)
+}
+
+func TestMultiRfc822(t *testing.T) {
+	var want string
+	var wantp *mime.Part
+	r := test.OpenTestData("parts", "multirfc822.raw")
+	p, err := mime.ReadParts(r)
+
+	// Examine root
+	if err != nil {
+		t.Fatal("Unexpected parse error:", err)
+	}
+	if p == nil {
+		t.Fatal("Root node should not be nil")
+	}
+
+	wantp = &mime.Part{
+		Subparts:    []*mime.Part{test.PartExists, test.PartExists},
+		ContentType: "multipart/mixed",
+		Descriptor:  "0",
+	}
+	test.ComparePart(t, p, wantp)
+
+	// Examine first child
+	p1 := p.Subparts[0]
+	wantp = &mime.Part{
+		Parent:      test.PartExists,
+		ContentType: "text/x-myown",
+		Charset:     "us-ascii",
+		Descriptor:  "1",
+	}
+	test.ComparePart(t, p1, wantp)
+
+	want = "hello"
+	test.ContentContainsString(t, p1, want)
+
+	// Examine sibling
+	p2 := p.Subparts[1]
+	wantp = &mime.Part{
+		Parent:      test.PartExists,
+		Subparts:    []*mime.Part{test.PartExists},
+		ContentType: "message/rfc822",
+		Descriptor:  "2",
+	}
+	test.ComparePart(t, p2, wantp)
+
+	want = "Sub MIME prologue"
+	test.ContentContainsString(t, p2, want)
+
+	// Message attachment
+	p3 := p2.Subparts[0]
+	wantp = &mime.Part{
+		Parent:      test.PartExists,
+		Subparts:    []*mime.Part{test.PartExists, test.PartExists},
+		ContentType: "multipart/alternative",
+		Descriptor:  "2.0",
+	}
+	test.ComparePart(t, p3, wantp)
+
+	// Message attachment
+	p4 := p3.Subparts[0]
+	wantp = &mime.Part{
+		Parent:      test.PartExists,
+		ContentType: "text/html",
+		Descriptor:  "2.1",
+	}
+	test.ComparePart(t, p4, wantp)
+
+	want = "<p>Hello world</p>"
+	test.ContentContainsString(t, p4, want)
+
+	// Message attachment
+	p5 := p3.Subparts[1]
+	wantp = &mime.Part{
+		Parent:      test.PartExists,
+		ContentType: "text/plain",
+		Descriptor:  "2.2",
+	}
+	test.ComparePart(t, p5, wantp)
+
+	want = "Hello another world"
+	test.ContentContainsString(t, p5, want)
 }
 
 func TestMultiAlternParts(t *testing.T) {
@@ -196,9 +279,10 @@ func TestPartMissingContentType(t *testing.T) {
 	// Examine first child
 	p1 := p.Subparts[0]
 	wantp = &mime.Part{
-		Parent: test.PartExists,
-		// No ContentType
-		Descriptor: "1",
+		Parent:      test.PartExists,
+		Charset:     "us-ascii",
+		ContentType: "text/plain",
+		Descriptor:  "1",
 	}
 	test.ComparePart(t, p1, wantp)
 
@@ -244,9 +328,10 @@ func TestPartEmptyHeader(t *testing.T) {
 	p1 := p.Subparts[0]
 
 	wantp = &mime.Part{
-		Parent: test.PartExists,
-		// No ContentType
-		Descriptor: "1",
+		Parent:      test.PartExists,
+		ContentType: "text/plain",
+		Charset:     "us-ascii",
+		Descriptor:  "1",
 	}
 	test.ComparePart(t, p1, wantp)
 
