@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	ContentTypeRfc822 = "message/rfc822"
+	ContentTypeMessageRfc822 = "message/rfc822"
 )
 
 type ReaderAtCloser interface {
@@ -220,9 +220,12 @@ func (p *Part) readPart(r io.Reader, offset int) error {
 			return err
 		}
 	} else {
-		if p.ContentType == ContentTypeRfc822 {
+		if p.ContentType == ContentTypeMessageRfc822 {
 			pp := NewPart(p)
 			pp.PartOffset = p.PartOffset + p.HeaderLen
+			if p.Descriptor == "" {
+				p.Descriptor = "1"
+			}
 			pp.Descriptor = p.Descriptor
 			err = pp.readPart(br, offset)
 			if err != nil {

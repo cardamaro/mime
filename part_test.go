@@ -102,6 +102,41 @@ func TestQuotedPrintableInvalidPart(t *testing.T) {
 	test.ContentContainsString(t, d, want)
 }
 
+func TestSingleRfc822(t *testing.T) {
+	var want string
+	var wantp *mime.Part
+	r := test.OpenTestData("parts", "singlerfc822.raw")
+	p, err := mime.ReadParts(r)
+
+	// Examine root
+	if err != nil {
+		t.Fatal("Unexpected parse error:", err)
+	}
+	if p == nil {
+		t.Fatal("Root node should not be nil")
+	}
+
+	wantp = &mime.Part{
+		Subparts:    []*mime.Part{test.PartExists},
+		ContentType: "message/rfc822",
+		Descriptor:  "1",
+	}
+	test.ComparePart(t, p, wantp)
+
+	// Examine first child
+	p1 := p.Subparts[0]
+	wantp = &mime.Part{
+		Parent:      test.PartExists,
+		ContentType: "text/plain",
+		Charset:     "us-ascii",
+		Descriptor:  "1",
+	}
+	test.ComparePart(t, p1, wantp)
+
+	want = "Hello world\n"
+	test.ContentEqualsString(t, p1, want)
+}
+
 func TestMultiRfc822(t *testing.T) {
 	var want string
 	var wantp *mime.Part
